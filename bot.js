@@ -45,6 +45,9 @@ const commands = [
     new SlashCommandBuilder().setName('random').setDescription('Pick a random clan member').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('skin').setDescription('Show a player\'s Minecraft skin').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('uptime').setDescription('Bot uptime').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('commands').setDescription('Useful 6b6t server commands').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('shop').setDescription('6b6t server shop items').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('online').setDescription('Check if a player is online on 6b6t').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -191,6 +194,9 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/compare <p1> <p2>', value: 'Compare two players' },
                     { name: '/server', value: 'Check 6b6t server status' },
                     { name: '/skin <player>', value: 'Show a player\'s Minecraft skin' },
+                    { name: '/commands', value: 'Useful 6b6t server commands' },
+                    { name: '/shop', value: '6b6t server shop items' },
+                    { name: '/online <player>', value: 'Check if a player is online' },
                     { name: '/poll <q> <opts>', value: 'Create a poll' },
                     { name: '/remind <time> <msg>', value: 'Set a reminder' },
                     { name: '/8ball <question>', value: 'Ask the magic 8-ball' },
@@ -460,6 +466,86 @@ client.on('interactionCreate', async (interaction) => {
                 .setTitle('Bot Uptime')
                 .setDescription(`⏱️ **${d}d ${h}h ${m}m ${s}s**`);
             await interaction.reply({ embeds: [embed] });
+
+        } else if (commandName === 'commands') {
+            const embed = new EmbedBuilder()
+                .setColor('#c9a84c')
+                .setTitle('6b6t Server Commands')
+                .setDescription('Useful commands on the 6b6t server')
+                .addFields(
+                    { name: '/tpa <player>', value: 'Send a teleport request' },
+                    { name: '/home <name>', value: 'Teleport to your home' },
+                    { name: '/sethome <name>', value: 'Set a home at current location' },
+                    { name: '/delhome <name>', value: 'Delete a home' },
+                    { name: '/homes', value: 'List all your homes' },
+                    { name: '/msg <player>', value: 'Send a private message' },
+                    { name: '/ignore <player>', value: 'Stop seeing messages from a player' },
+                    { name: '/mail send <player> <msg>', value: 'Send offline mail' },
+                    { name: '/mail read', value: 'Read your mail' },
+                    { name: '/skin <url/name>', value: 'Change your skin' },
+                    { name: '/bal', value: 'Check your balance' },
+                    { name: '/pay <player> <amount>', value: 'Pay another player' },
+                    { name: '/bal top', value: 'Richest players leaderboard' },
+                    { name: '/vote', value: 'Voting links and rewards' },
+                    { name: '/report <player> <reason>', value: 'Report a rulebreaker' },
+                    { name: '/coords <x> <z>', value: 'Share coordinates (nether/overworld calc)' },
+                    { name: '/hotspot', value: 'Teleport to an active hotspot' },
+                );
+            await interaction.reply({ embeds: [embed] });
+
+        } else if (commandName === 'shop') {
+            const embed = new EmbedBuilder()
+                .setColor('#c9a84c')
+                .setTitle('6b6t Server Shop')
+                .setDescription('Items available at spawn shops')
+                .addFields(
+                    { name: 'Essentials', value: 'Ender Chests, Shulker Boxes, Totems, Elytra, Rockets' },
+                    { name: 'Gear', value: 'Diamond/Netherite Armor, Tools, Weapons' },
+                    { name: 'Building', value: 'Wood, Stone, Glass, Concrete, Terracotta' },
+                    { name: 'Redstone', value: 'Pistons, Repeaters, Observers, Hoppers, TNT' },
+                    { name: 'Food', value: 'Golden Apples, Enchanted Gapples, Steak, Cake' },
+                    { name: 'Misc', value: 'Beds, Maps, Name Tags, Saddles, Horse Armor' },
+                    { name: 'Cosmetics', value: 'Balloons, Hats, Particles, Trails' },
+                )
+                .setFooter({ text: 'Prices vary. Check /warp shop in-game.' });
+            await interaction.reply({ embeds: [embed] });
+
+        } else if (commandName === 'online') {
+            const playerName = interaction.options.getString('player');
+            await interaction.deferReply();
+            try {
+                const req = https.get('https://api.mcsrvstat.us/2/play.6b6t.org', { timeout: 5000 }, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', async () => {
+                        try {
+                            const json = JSON.parse(data);
+                            if (!json.online) {
+                                await interaction.editReply({ content: '6b6t is currently offline.' });
+                                return;
+                            }
+                            const online = json.players && json.players.list ? json.players.list : [];
+                            const found = online.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+                            const embed = new EmbedBuilder()
+                                .setColor('#c9a84c')
+                                .setTitle('Player Online Status');
+                            if (found) {
+                                embed.setDescription(`🟢 **${found.name}** is online on 6b6t!`);
+                                if (found.uuid) embed.setThumbnail(`https://mc-heads.net/head/${found.uuid}.png`);
+                            } else {
+                                embed.setDescription(`🔴 **${playerName}** is not currently online.\n(${json.players.online} players online)`);
+                            }
+                            await interaction.editReply({ content: null, embeds: [embed] });
+                        } catch (e) {
+                            await interaction.editReply({ content: 'Failed to check player status.' });
+                        }
+                    });
+                });
+                req.on('timeout', () => { req.destroy(); interaction.editReply({ content: 'Timed out.' }); });
+                req.on('error', () => interaction.editReply({ content: 'Failed to check player status.' }));
+            } catch (e) {
+                await interaction.editReply({ content: 'Failed to check player status.' });
+            }
 
         } else if (commandName === 'roster') {
             if (!interaction.guild) { await interaction.reply({ content: 'Roster is only available in a server.', ephemeral: true }); } else {
