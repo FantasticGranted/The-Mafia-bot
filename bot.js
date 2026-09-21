@@ -72,17 +72,17 @@ function loadPlayersData() {
 function searchPlayer(name) {
     if (!playersData) return null;
     const lower = name.toLowerCase();
-    let best = playersData.find(p =>
+    let match = playersData.find(p =>
         p.u && p.u.toLowerCase() === lower ||
         p.d && p.d.toLowerCase() === lower
     );
-    if (best) return best;
-    best = playersData.find(p =>
+    if (match) return { player: match, exact: true };
+    match = playersData.find(p =>
         p.u && p.u.toLowerCase().includes(lower) ||
         p.d && p.d.toLowerCase().includes(lower)
     );
-    if (best) return best;
-    best = playersData.find(p => {
+    if (match) return { player: match, exact: false };
+    match = playersData.find(p => {
         if (!p.u) return false;
         const u = p.u.toLowerCase();
         let ai = 0, bi = 0, dist = 0;
@@ -93,7 +93,8 @@ function searchPlayer(name) {
         dist += Math.abs(u.length - ai - (lower.length - bi));
         return dist <= 3;
     });
-    return best;
+    if (match) return { player: match, exact: false };
+    return null;
 }
 
 function formatPlayerStats(p) {
@@ -111,10 +112,14 @@ function findPlayersInMessage(text) {
     for (const word of words) {
         const clean = word.replace(/[^a-zA-Z0-9_]/g, '');
         if (clean.length < 3) continue;
-        const match = searchPlayer(clean);
-        if (match && !found.has(match.u)) {
-            found.add(match.u);
-            results.push(formatPlayerStats(match));
+        const result = searchPlayer(clean);
+        if (result && !found.has(result.player.u)) {
+            found.add(result.player.u);
+            let line = formatPlayerStats(result.player);
+            if (!result.exact) {
+                line += ` (Did you mean ${result.player.d || result.player.u}?)`;
+            }
+            results.push(line);
         }
     }
     return results.length > 0 ? '\n6b6t player stats found:\n' + results.join('\n') : '';
@@ -255,7 +260,8 @@ client.on('interactionCreate', async (interaction) => {
             tryModel(0);
         } else if (commandName === 'stats') {
             const playerName = interaction.options.getString('player');
-            const player = searchPlayer(playerName);
+            const result = searchPlayer(playerName);
+            const player = result ? result.player : null;
 
             if (!player) {
                 const embed = new EmbedBuilder()
