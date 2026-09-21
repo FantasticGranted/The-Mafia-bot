@@ -72,10 +72,28 @@ function loadPlayersData() {
 function searchPlayer(name) {
     if (!playersData) return null;
     const lower = name.toLowerCase();
-    return playersData.find(p =>
+    let best = playersData.find(p =>
         p.u && p.u.toLowerCase() === lower ||
         p.d && p.d.toLowerCase() === lower
     );
+    if (best) return best;
+    best = playersData.find(p =>
+        p.u && p.u.toLowerCase().includes(lower) ||
+        p.d && p.d.toLowerCase().includes(lower)
+    );
+    if (best) return best;
+    best = playersData.find(p => {
+        if (!p.u) return false;
+        const u = p.u.toLowerCase();
+        let ai = 0, bi = 0, dist = 0;
+        while (ai < u.length && bi < lower.length) {
+            if (u[ai] === lower[bi]) { ai++; bi++; }
+            else { dist++; ai++; if (dist > 3) return false; }
+        }
+        dist += Math.abs(u.length - ai - (lower.length - bi));
+        return dist <= 3;
+    });
+    return best;
 }
 
 function formatPlayerStats(p) {
@@ -93,11 +111,7 @@ function findPlayersInMessage(text) {
     for (const word of words) {
         const clean = word.replace(/[^a-zA-Z0-9_]/g, '');
         if (clean.length < 3) continue;
-        const lower = clean.toLowerCase();
-        const match = playersData.find(p =>
-            (p.u && p.u.toLowerCase() === lower) ||
-            (p.d && p.d.toLowerCase() === lower)
-        );
+        const match = searchPlayer(clean);
         if (match && !found.has(match.u)) {
             found.add(match.u);
             results.push(formatPlayerStats(match));
