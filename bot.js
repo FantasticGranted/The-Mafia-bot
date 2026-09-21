@@ -20,10 +20,10 @@ function killOtherInstances() {
 killOtherInstances();
 process.on('exit', () => { try { fs.unlinkSync(LOCK_FILE); } catch (e) {} });
 
-const TOKEN = 'MTU0NjAwNDg3ODEzMDk0MTk1Mg.GFKbq9.t-2czi5Xd8gf5Ah1R0F9Ge5Xugr5YVnae78EZw';
-const CLIENT_ID = '1546004878130941952';
+const TOKEN = process.env.TOKEN || 'MTU0NjAwNDg3ODEzMDk0MTk1Mg.GFKbq9.t-2czi5Xd8gf5Ah1R0F9Ge5Xugr5YVnae78EZw';
+const CLIENT_ID = process.env.CLIENT_ID || '1546004878130941952';
 const GUILD_NAME = 'The Mafia';
-const OPENROUTER_KEY = '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';
+const OPENROUTER_KEY = process.env.OPENROUTER_KEY || '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';
 const BOT_START = Date.now();
 
 const commands = [
