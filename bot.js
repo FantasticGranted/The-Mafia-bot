@@ -48,6 +48,7 @@ const commands = [
     new SlashCommandBuilder().setName('commands').setDescription('Useful 6b6t server commands').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('shop').setDescription('6b6t server shop items').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('online').setDescription('Check if a player is online on 6b6t').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('mods').setDescription('Recommended 6b6t client mods').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -197,6 +198,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/commands', value: 'Useful 6b6t server commands' },
                     { name: '/shop', value: '6b6t server shop items' },
                     { name: '/online <player>', value: 'Check if a player is online' },
+                    { name: '/mods', value: 'Recommended 6b6t client mods' },
                     { name: '/poll <q> <opts>', value: 'Create a poll' },
                     { name: '/remind <time> <msg>', value: 'Set a reminder' },
                     { name: '/8ball <question>', value: 'Ask the magic 8-ball' },
@@ -546,6 +548,20 @@ client.on('interactionCreate', async (interaction) => {
             } catch (e) {
                 await interaction.editReply({ content: 'Failed to check player status.' });
             }
+
+        } else if (commandName === 'mods') {
+            const embed = new EmbedBuilder()
+                .setColor('#c9a84c')
+                .setTitle('Recommended 6b6t Client Mods')
+                .setDescription('Essential mods for anarchy servers')
+                .addFields(
+                    { name: 'AnarchyMod', value: 'Combat/utility mod for anarchy servers\nhttps://www.curseforge.com/minecraft/mc-mods/anarchymod' },
+                    { name: 'QuinnAddon', value: 'Meteor Client addon with extra modules\nhttps://github.com/QuinnnMC/QuinnAddon' },
+                    { name: 'VolytraFly', value: 'Fly addon for Meteor Client\nhttps://github.com/Volizray/VolytraFly-Addon' },
+                    { name: 'QuieteeUtils', value: 'Utility mod for anarchy servers\nhttps://github.com/FragmentZero6b6t/quiettee-utils' },
+                )
+                .setFooter({ text: 'All mods are for Fabric. Use at your own risk.' });
+            await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'roster') {
             if (!interaction.guild) { await interaction.reply({ content: 'Roster is only available in a server.', ephemeral: true }); } else {
