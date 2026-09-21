@@ -2,6 +2,31 @@ const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Rout
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+const LOCK_FILE = path.join(__dirname, '.bot.lock');
+
+function killOtherInstances() {
+    try {
+        if (fs.existsSync(LOCK_FILE)) {
+            const oldPid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim());
+            if (oldPid && oldPid !== process.pid) {
+                try {
+                    process.kill(oldPid, 'SIGTERM');
+                    console.log(`Killed old bot instance (PID ${oldPid}).`);
+                } catch (e) {}
+                fs.unlinkSync(LOCK_FILE);
+            }
+        }
+    } catch (e) {}
+    fs.writeFileSync(LOCK_FILE, process.pid.toString());
+}
+
+killOtherInstances();
+
+process.on('exit', () => {
+    try { fs.unlinkSync(LOCK_FILE); } catch (e) {}
+});
 
 const TOKEN = 'MTU0NjAwNDg3ODEzMDk0MTk1Mg.GFKbq9.t-2czi5Xd8gf5Ah1R0F9Ge5Xugr5YVnae78EZw';
 const CLIENT_ID = '1546004878130941952';
