@@ -137,8 +137,9 @@ function findPlayersInMessage(text) {
     const results = [];
     for (const word of words) {
         const clean = word.replace(/[^a-zA-Z0-9_]/g, '');
-        if (clean.length < 3) continue;
+        if (clean.length < 4) continue;
         const result = searchPlayer(clean);
+        if (result && !result.exact && clean.length < 6) continue;
         if (result && !found.has(result.player.u)) {
             found.add(result.player.u);
             let line = formatPlayerStats(result.player);
