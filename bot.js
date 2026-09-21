@@ -9,15 +9,15 @@ const GUILD_NAME = 'The Mafia';
 const OPENROUTER_KEY = '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';
 
 const commands = [
-    new SlashCommandBuilder().setName('help').setDescription('List all commands'),
-    new SlashCommandBuilder().setName('roster').setDescription('List all members and their roles'),
-    new SlashCommandBuilder().setName('rules').setDescription('Show clan rules'),
-    new SlashCommandBuilder().setName('rank').setDescription('Check your rank in the clan'),
-    new SlashCommandBuilder().setName('members').setDescription('Show member count'),
-    new SlashCommandBuilder().setName('info').setDescription('Show clan info'),
-    new SlashCommandBuilder().setName('sync').setDescription('Generate HTML for the website (admin only)'),
-    new SlashCommandBuilder().setName('ai').setDescription('Chat with AI').addStringOption(option => option.setName('message').setDescription('Your message').setRequired(true)),
-    new SlashCommandBuilder().setName('stats').setDescription('Look up a player on 6b6t').addStringOption(option => option.setName('player').setDescription('Minecraft username').setRequired(true)),
+    new SlashCommandBuilder().setName('help').setDescription('List all commands').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('roster').setDescription('List all members and their roles').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('rules').setDescription('Show clan rules').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('rank').setDescription('Check your rank in the clan').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('members').setDescription('Show member count').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('info').setDescription('Show clan info').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('sync').setDescription('Generate HTML for the website (admin only)').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('ai').setDescription('Chat with AI').addStringOption(option => option.setName('message').setDescription('Your message').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('stats').setDescription('Look up a player on 6b6t').addStringOption(option => option.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -37,6 +37,7 @@ let memberCacheTime = 0;
 const MEMBER_CACHE_TTL = 5 * 60 * 1000;
 
 async function getMemberData(guild) {
+    if (!guild) return 'No server data available (used in DM).';
     const now = Date.now();
     if (memberCache && (now - memberCacheTime) < MEMBER_CACHE_TTL) {
         return memberCache;
@@ -290,26 +291,30 @@ client.on('interactionCreate', async (interaction) => {
                 .setThumbnail(`https://mc-heads.net/head/${player.u}.png`);
             await interaction.reply({ embeds: [embed] });
         } else if (commandName === 'roster') {
-            const guild = interaction.guild;
-            const members = await guild.members.fetch();
-            const embed = new EmbedBuilder()
-                .setColor('#c9a84c')
-                .setTitle(`${GUILD_NAME} - Roster`)
-                .setDescription(`Total members: ${members.filter(m => !m.user.bot).size}`);
+            if (!interaction.guild) {
+                await interaction.reply({ content: 'Roster is only available in a server.', ephemeral: true });
+            } else {
+                const guild = interaction.guild;
+                const members = await guild.members.fetch();
+                const embed = new EmbedBuilder()
+                    .setColor('#c9a84c')
+                    .setTitle(`${GUILD_NAME} - Roster`)
+                    .setDescription(`Total members: ${members.filter(m => !m.user.bot).size}`);
 
-            const roleGroups = {};
-            members.forEach(member => {
-                if (member.user.bot) return;
-                const topRole = member.roles.highest.name;
-                if (!roleGroups[topRole]) roleGroups[topRole] = [];
-                roleGroups[topRole].push(member.displayName);
-            });
+                const roleGroups = {};
+                members.forEach(member => {
+                    if (member.user.bot) return;
+                    const topRole = member.roles.highest.name;
+                    if (!roleGroups[topRole]) roleGroups[topRole] = [];
+                    roleGroups[topRole].push(member.displayName);
+                });
 
-            for (const [role, names] of Object.entries(roleGroups)) {
-                embed.addFields({ name: role, value: names.join(', ') || 'None' });
+                for (const [role, names] of Object.entries(roleGroups)) {
+                    embed.addFields({ name: role, value: names.join(', ') || 'None' });
+                }
+
+                await interaction.reply({ embeds: [embed] });
             }
-
-            await interaction.reply({ embeds: [embed] });
         } else if (commandName === 'rules') {
             const embed = new EmbedBuilder()
                 .setColor('#c9a84c')
@@ -323,31 +328,39 @@ client.on('interactionCreate', async (interaction) => {
                 );
             await interaction.reply({ embeds: [embed] });
         } else if (commandName === 'rank') {
-            const member = interaction.member;
-            const topRole = member.roles.highest;
-            const embed = new EmbedBuilder()
-                .setColor('#c9a84c')
-                .setTitle(`${interaction.user.username}'s Rank`)
-                .addFields(
-                    { name: 'Display Name', value: member.displayName, inline: true },
-                    { name: 'Top Role', value: topRole.name, inline: true },
-                    { name: 'Joined', value: member.joinedAt.toLocaleDateString(), inline: true },
-                );
-            await interaction.reply({ embeds: [embed] });
+            if (!interaction.guild) {
+                await interaction.reply({ content: 'Rank is only available in a server.', ephemeral: true });
+            } else {
+                const member = interaction.member;
+                const topRole = member.roles.highest;
+                const embed = new EmbedBuilder()
+                    .setColor('#c9a84c')
+                    .setTitle(`${interaction.user.username}'s Rank`)
+                    .addFields(
+                        { name: 'Display Name', value: member.displayName, inline: true },
+                        { name: 'Top Role', value: topRole.name, inline: true },
+                        { name: 'Joined', value: member.joinedAt.toLocaleDateString(), inline: true },
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
         } else if (commandName === 'members') {
-            const guild = interaction.guild;
-            const members = await guild.members.fetch();
-            const humanCount = members.filter(m => !m.user.bot).size;
-            const botCount = members.filter(m => m.user.bot).size;
-            const embed = new EmbedBuilder()
-                .setColor('#c9a84c')
-                .setTitle(`${GUILD_NAME} - Member Count`)
-                .addFields(
-                    { name: 'Humans', value: `${humanCount}`, inline: true },
-                    { name: 'Bots', value: `${botCount}`, inline: true },
-                    { name: 'Total', value: `${humanCount + botCount}`, inline: true },
-                );
-            await interaction.reply({ embeds: [embed] });
+            if (!interaction.guild) {
+                await interaction.reply({ content: 'Member count is only available in a server.', ephemeral: true });
+            } else {
+                const guild = interaction.guild;
+                const members = await guild.members.fetch();
+                const humanCount = members.filter(m => !m.user.bot).size;
+                const botCount = members.filter(m => m.user.bot).size;
+                const embed = new EmbedBuilder()
+                    .setColor('#c9a84c')
+                    .setTitle(`${GUILD_NAME} - Member Count`)
+                    .addFields(
+                        { name: 'Humans', value: `${humanCount}`, inline: true },
+                        { name: 'Bots', value: `${botCount}`, inline: true },
+                        { name: 'Total', value: `${humanCount + botCount}`, inline: true },
+                    );
+                await interaction.reply({ embeds: [embed] });
+            }
         } else if (commandName === 'info') {
             const guild = interaction.guild;
             const embed = new EmbedBuilder()
