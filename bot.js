@@ -632,19 +632,14 @@ client.on('interactionCreate', async (interaction) => {
             if (!interaction.member.permissions.has('Administrator')) { return interaction.reply({ content: 'You need admin permissions to use this.', ephemeral: true }); }
             const guild = interaction.guild;
             const members = await guild.members.fetch();
-            const roleGroups = {};
-            members.forEach(member => {
-                if (member.user.bot) return;
-                const topRole = member.roles.highest.name;
-                if (!roleGroups[topRole]) roleGroups[topRole] = [];
-                roleGroups[topRole].push({ name: member.displayName, id: member.id });
-            });
+            const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
             let html = '<div class="members-grid" id="members-grid">\n';
-            for (const [role, ms] of Object.entries(roleGroups)) {
-                for (const m of ms) {
-                    const initial = m.name.charAt(0).toUpperCase();
-                    html += `                <div class="member-card">\n                    <div class="member-avatar">${initial}</div>\n                    <div class="member-name content-editable" data-content-id="member-${m.id}-name" contenteditable="false">${m.name}</div>\n                    <div class="member-role content-editable" data-content-id="member-${m.id}-role" contenteditable="false">${role}</div>\n                </div>\n`;
-                }
+            for (const member of sorted) {
+                const initial = member.displayName.charAt(0).toUpperCase();
+                const roles = member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ');
+                const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
+                const avatar = member.user.displayAvatarURL({ size: 64 });
+                html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${member.displayName}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${member.displayName}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
             }
             html += '            </div>';
             const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('Website Sync - Members HTML').setDescription('Copy this and replace the members-grid section in your index.html:\n\n```html\n' + html + '\n```');
