@@ -23,6 +23,7 @@ process.on('exit', () => { try { fs.unlinkSync(LOCK_FILE); } catch (e) {} });
 const TOKEN = process.env.TOKEN || 'MTU0NjAwNDg3ODEzMDk0MTk1Mg.GFKbq9.t-2czi5Xd8gf5Ah1R0F9Ge5Xugr5YVnae78EZw';
 const CLIENT_ID = process.env.CLIENT_ID || '1546004878130941952';
 const GUILD_NAME = 'The Mafia';
+const GUILD_ID = process.env.GUILD_ID || '1525527778949202031';
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY || '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';
 const BOT_START = Date.now();
 
@@ -615,7 +616,7 @@ client.on('interactionCreate', async (interaction) => {
         } else if (commandName === 'info') {
             const guild = interaction.guild;
             const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(GUILD_NAME).setDescription('A clan founded by 3 people and lead by 5').addFields(
-                { name: 'Server', value: guild ? guild.name : 'DM', inline: true },
+                { name: 'Server', value: guild && guild.id === GUILD_ID ? guild.name : 'A discord server', inline: true },
                 { name: 'Members', value: `${guild ? guild.memberCount : 'N/A'}`, inline: true },
                 { name: 'Created', value: guild ? guild.createdAt.toLocaleDateString() : 'N/A', inline: true },
             );
