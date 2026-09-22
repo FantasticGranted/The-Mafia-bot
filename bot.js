@@ -691,6 +691,7 @@ client.on('interactionCreate', async (interaction) => {
                 console.error('Sync push error:', e);
                 await interaction.editReply({ content: 'Failed to push to website. Check bot logs.' });
             }
+        }
     } catch (e) {
         console.error(`Error handling /${commandName}:`, e);
         try {
