@@ -615,10 +615,16 @@ client.on('interactionCreate', async (interaction) => {
 
         } else if (commandName === 'info') {
             const guild = interaction.guild;
+            const isMainGuild = guild && guild.id === GUILD_ID;
+            const uptimeMs = Date.now() - BOT_START;
+            const uptimeH = Math.floor(uptimeMs / 3600000);
+            const uptimeM = Math.floor((uptimeMs % 3600000) / 60000);
             const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(GUILD_NAME).setDescription('A clan founded by 3 people and lead by 5').addFields(
-                { name: 'Server', value: guild && guild.id === GUILD_ID ? guild.name : 'A discord server', inline: true },
-                { name: 'Members', value: `${guild ? guild.memberCount : 'N/A'}`, inline: true },
-                { name: 'Created', value: guild ? guild.createdAt.toLocaleDateString() : 'N/A', inline: true },
+                isMainGuild
+                    ? { name: 'Server', value: guild.name, inline: true }
+                    : { name: 'Bot Uptime', value: `${uptimeH}h ${uptimeM}m`, inline: true },
+                { name: 'Members', value: isMainGuild ? `${guild.memberCount}` : `${client.guilds.cache.size} servers`, inline: true },
+                { name: 'Created', value: isMainGuild ? guild.createdAt.toLocaleDateString() : '6b6t anarchy', inline: true },
             );
             await interaction.reply({ embeds: [embed] });
 
