@@ -3,6 +3,27 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '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';
+
+function githubRequest(url, method, body) {
+    return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const options = { hostname: urlObj.hostname, path: urlObj.pathname + urlObj.search, method, headers: { Authorization: `token ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json', 'User-Agent': 'mafia-bot' } };
+        if (body) { options.headers['Content-Type'] = 'application/json'; }
+        const req = https.request(options, res => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try { resolve({ status: res.statusCode, data: JSON.parse(data) }); }
+                catch (e) { reject(new Error(`Parse error: ${data.slice(0, 200)}`)); }
+            });
+        });
+        req.on('error', reject);
+        if (body) req.write(JSON.stringify(body));
+        req.end();
+    });
+}
+
 const LOCK_FILE = path.join(__dirname, '.bot.lock');
 
 function killOtherInstances() {
@@ -630,21 +651,46 @@ client.on('interactionCreate', async (interaction) => {
 
         } else if (commandName === 'sync') {
             if (!interaction.member.permissions.has('Administrator')) { return interaction.reply({ content: 'You need admin permissions to use this.', ephemeral: true }); }
+            await interaction.deferReply();
             const guild = interaction.guild;
             const members = await guild.members.fetch();
             const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
             let html = '<div class="members-grid" id="members-grid">\n';
             for (const member of sorted) {
-                const initial = member.displayName.charAt(0).toUpperCase();
                 const roles = member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ');
                 const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
                 const avatar = member.user.displayAvatarURL({ size: 64 });
                 html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${member.displayName}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${member.displayName}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
             }
             html += '            </div>';
-            const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('Website Sync - Members HTML').setDescription('Copy this and replace the members-grid section in your index.html:\n\n```html\n' + html + '\n```');
-            await interaction.reply({ embeds: [embed] });
-        }
+
+            try {
+                const repoOwner = 'FantasticGranted';
+                const repoName = 'The-Mafia-website';
+                const filePath = 'index.html';
+                const branch = 'gh-pages';
+
+                const getRes = await githubRequest(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}?ref=${branch}`, 'GET');
+                if (getRes.status !== 200) throw new Error(`GitHub GET failed: ${getRes.status}`);
+                const fileData = getRes.data;
+                const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+
+                const regex = /<div class="members-grid" id="members-grid">[\s\S]*?<\/div>\s*(?=<\/section>|<button|<div class="section)/;
+                const newContent = content.replace(regex, html);
+
+                const putRes = await githubRequest(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, 'PUT', {
+                    message: `bot: sync roster (${sorted.size} members)`,
+                    content: Buffer.from(newContent).toString('base64'),
+                    sha: fileData.sha,
+                    branch
+                });
+                if (putRes.status !== 200) throw new Error(`GitHub PUT failed: ${putRes.status}`);
+
+                await interaction.editReply({ content: `Website updated! ${sorted.size} members synced. <https://fantasticgranted.github.io/The-Mafia-website/>` });
+            } catch (e) {
+                console.error('Sync push error:', e);
+                await interaction.editReply({ content: 'Failed to push to website. Check bot logs.' });
+            }
     } catch (e) {
         console.error(`Error handling /${commandName}:`, e);
         try {
