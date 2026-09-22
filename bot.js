@@ -614,7 +614,7 @@ client.on('interactionCreate', async (interaction) => {
 
         } else if (commandName === 'info') {
             const guild = interaction.guild;
-            const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(GUILD_NAME).setDescription('A dominant force on 6b6t').addFields(
+            const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(GUILD_NAME).setDescription('A clan founded by 3 people and lead by 5').addFields(
                 { name: 'Server', value: guild ? guild.name : 'DM', inline: true },
                 { name: 'Members', value: `${guild ? guild.memberCount : 'N/A'}`, inline: true },
                 { name: 'Created', value: guild ? guild.createdAt.toLocaleDateString() : 'N/A', inline: true },
