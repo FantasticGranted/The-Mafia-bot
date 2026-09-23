@@ -46,7 +46,6 @@ const CLIENT_ID = process.env.CLIENT_ID || '1546004878130941952';
 const GUILD_NAME = 'The Mafia';
 const GUILD_ID = process.env.GUILD_ID || '1525527778949202031';
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const BOT_START = Date.now();
 
 const commands = [
