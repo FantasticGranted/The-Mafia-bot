@@ -659,7 +659,7 @@ client.on('interactionCreate', async (interaction) => {
             let html = '<div class="members-grid" id="members-grid">\n';
             for (const member of sorted.values()) {
                 try {
-                    const roles = member.roles && member.roles.cache ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') || 'Member' : 'Member';
+                    const roles = member.roles && member.roles.cache ? member.roles.cache.filter(r => r.name !== '@everyone').sort((a, b) => b.position - a.position).map(r => r.name).join(', ') || 'Member' : 'Member';
                     const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
                     const avatar = member.user ? member.user.displayAvatarURL({ size: 64 }) : 'https://cdn.discordapp.com/embed/avatars/0.png';
                     const name = member.displayName || (member.user ? member.user.username : 'Unknown');
