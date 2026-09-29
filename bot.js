@@ -655,13 +655,14 @@ client.on('interactionCreate', async (interaction) => {
             const guild = interaction.guild;
             if (!guild) { return interaction.editReply({ content: 'Sync only works in a server.' }); }
             const members = await guild.members.fetch();
-            const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
+            const sorted = members.filter(m => !m.user.bot && m.roles && m.roles.cache && m.user).sort((a, b) => a.joinedAt - b.joinedAt);
             let html = '<div class="members-grid" id="members-grid">\n';
             for (const member of sorted) {
-                const roles = member.roles && member.roles.cache ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') : 'Member';
+                const roles = member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') || 'Member';
                 const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
-                const avatar = member.user.displayAvatarURL({ size: 64 });
-                html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${member.displayName}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${member.displayName}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
+                const avatar = member.user.displayAvatarURL({ size: 64 }) || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                const name = member.displayName || member.user.username;
+                html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${name}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${name}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
             }
             html += '            </div>';
 
