@@ -650,9 +650,10 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'sync') {
-            if (!interaction.member.permissions.has('Administrator')) { return interaction.reply({ content: 'You need admin permissions to use this.', ephemeral: true }); }
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
+            if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has('Administrator')) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
             const guild = interaction.guild;
+            if (!guild) { return interaction.editReply({ content: 'Sync only works in a server.' }); }
             const members = await guild.members.fetch();
             const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
             let html = '<div class="members-grid" id="members-grid">\n';
