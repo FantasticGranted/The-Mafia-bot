@@ -656,10 +656,8 @@ client.on('interactionCreate', async (interaction) => {
             if (!guild) { return interaction.editReply({ content: 'Sync only works in a server.' }); }
             const members = await guild.members.fetch();
             const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
-            console.log(`Sync: fetched ${sorted.size} members, first member roles:`, sorted.first() ? typeof sorted.first().roles : 'no first');
-            if (sorted.first()) { console.log('Roles object:', sorted.first().roles ? Object.keys(sorted.first().roles) : 'undefined'); console.log('Cache:', sorted.first().roles && sorted.first().roles.cache ? sorted.first().roles.cache.size : 'no cache'); }
             let html = '<div class="members-grid" id="members-grid">\n';
-            for (const member of sorted) {
+            for (const member of sorted.values()) {
                 try {
                     const roles = member.roles && member.roles.cache ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') || 'Member' : 'Member';
                     const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
