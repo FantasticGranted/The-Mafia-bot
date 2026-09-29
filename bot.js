@@ -658,7 +658,7 @@ client.on('interactionCreate', async (interaction) => {
             const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
             let html = '<div class="members-grid" id="members-grid">\n';
             for (const member of sorted) {
-                const roles = member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ');
+                const roles = member.roles && member.roles.cache ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') : 'Member';
                 const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
                 const avatar = member.user.displayAvatarURL({ size: 64 });
                 html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${member.displayName}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${member.displayName}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
