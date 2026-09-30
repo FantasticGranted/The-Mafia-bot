@@ -185,10 +185,13 @@ async function registerCommands() {
 }
 
 const models = [
-    'nex-agi/nex-n2.5-mini:free',
-    'inclusionai/ling-3.0-flash-vl:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
     'nvidia/nemotron-3.5-lightning:free',
-    'liquid/lfm-2.5-2.6b:free'
+    'poolside/laguna-s-2.1:free',
+    'liquid/lfm-2.5-2.6b:free',
+    'google/gemma-4-31b-it:free',
+    'qwen/qwen3.8-27b:free',
+    'inclusionai/ling-3.0-flash-sante:free'
 ];
 
 async function syncRoster(guild) {
