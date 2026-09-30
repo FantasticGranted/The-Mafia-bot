@@ -185,10 +185,10 @@ async function registerCommands() {
 }
 
 const models = [
-    'nvidia/nemotron-3-super-120b-a12b:free',
-    'nvidia/nemotron-3.5-lightning:free',
     'poolside/laguna-s-2.1:free',
     'liquid/lfm-2.5-2.6b:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'nvidia/nemotron-3.5-lightning:free',
     'google/gemma-4-31b-it:free',
     'qwen/qwen3.8-27b:free',
     'inclusionai/ling-3.0-flash-sante:free'
@@ -309,7 +309,18 @@ client.on('interactionCreate', async (interaction) => {
                         try {
                             const json = JSON.parse(data);
                             if (json.error) { console.log(`Model ${model} failed:`, json.error.message); return tryModel(mi + 1); }
-                            let reply = json.choices[0].message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim().substring(0, 1900);
+                            let reply = json.choices[0].message.content;
+                            reply = reply.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<thinking>[\s\S]*?<\/thinking>/g, '').trim();
+                            if (/^(here'?s a thinking process|thinking:|thought process|let me think|analysis:)/i.test(reply)) {
+                                const lines = reply.split('\n');
+                                let start = 0;
+                                for (let i = 0; i < lines.length; i++) {
+                                    if (lines[i].trim() === '' && i > 3) { start = i + 1; break; }
+                                }
+                                reply = lines.slice(start).join('\n').trim();
+                            }
+                            reply = reply.substring(0, 1900);
+                            if (!reply) reply = 'I had trouble responding, try again!';
                             const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('AI Response').setDescription(reply).setFooter({ text: 'Powered by OpenRouter' });
                             await interaction.editReply({ content: null, embeds: [embed] });
                         } catch (e) { tryModel(mi + 1); }
