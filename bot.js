@@ -71,6 +71,7 @@ const commands = [
     new SlashCommandBuilder().setName('shop').setDescription('6b6t server shop items').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('online').setDescription('Check if a player is online on 6b6t').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('mods').setDescription('Recommended 6b6t client mods').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('ign').setDescription('Look up or set a member\'s Minecraft IGN').addUserOption(o => o.setName('user').setDescription('The member').setRequired(true)).addStringOption(o => o.setName('ign').setDescription('Set their IGN (leave blank to look up)')).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -194,6 +195,76 @@ const models = [
     'inclusionai/ling-3.0-flash-sante:free'
 ];
 
+const IGN_FILE = path.join(__dirname, 'igns.json');
+const IGN_REPO = { owner: 'FantasticGranted', repo: 'The-Mafia-website', path: 'igns.json', branch: 'gh-pages' };
+let ignStore = {};
+let ignsLoaded = false;
+
+function loadIgnsLocal() { try { if (fs.existsSync(IGN_FILE)) ignStore = JSON.parse(fs.readFileSync(IGN_FILE, 'utf8')); } catch (e) { ignStore = {}; } }
+function saveIgnsLocal() { try { fs.writeFileSync(IGN_FILE, JSON.stringify(ignStore, null, 2)); } catch (e) {} }
+
+async function loadIgns() {
+    loadIgnsLocal();
+    try {
+        const res = await githubRequest(`https://api.github.com/repos/${IGN_REPO.owner}/${IGN_REPO.repo}/contents/${IGN_REPO.path}?ref=${IGN_REPO.branch}`, 'GET');
+        if (res.status === 200) {
+            const remote = JSON.parse(Buffer.from(res.data.content, 'base64').toString('utf8'));
+            ignStore = { ...remote, ...ignStore };
+            saveIgnsLocal();
+        }
+    } catch (e) { console.error('IGN load failed:', e.message); }
+    ignsLoaded = true;
+}
+
+async function saveIgns() {
+    saveIgnsLocal();
+    try {
+        let sha;
+        const get = await githubRequest(`https://api.github.com/repos/${IGN_REPO.owner}/${IGN_REPO.repo}/contents/${IGN_REPO.path}?ref=${IGN_REPO.branch}`, 'GET');
+        if (get.status === 200) sha = get.data.sha;
+        const body = { message: 'bot: update igns', content: Buffer.from(JSON.stringify(ignStore, null, 2)).toString('base64'), branch: IGN_REPO.branch };
+        if (sha) body.sha = sha;
+        const put = await githubRequest(`https://api.github.com/repos/${IGN_REPO.owner}/${IGN_REPO.repo}/contents/${IGN_REPO.path}`, 'PUT', body);
+        if (put.status !== 200 && put.status !== 201) console.error('IGN save failed:', put.status);
+    } catch (e) { console.error('IGN save failed:', e.message); }
+}
+
+function extractIgn(msg) {
+    const content = msg.content.trim();
+    if (!content) return null;
+    if (content.length > 60) return null;
+    if (/<@|https?:\/\/|^(put ur|isnt it|i think|clash|sure|that |no$|yes$|dang|bruh)/i.test(content)) return null;
+    if (/[?!.]{2,}/.test(content)) return null;
+    let m = content.match(/my ign (?:is|:)\s*([A-Za-z0-9_]{3,16})/i);
+    if (m) return m[1];
+    m = content.match(/^([A-Za-z0-9_]{3,16})\s*\/\s*[A-Za-z0-9_]{3,16}$/);
+    if (m) return m[1];
+    m = content.match(/^(?:ign\s*[:=]\s*)?([A-Za-z0-9_]{3,16})$/i);
+    if (m && !/^(ign|put|ur|the|and)$/i.test(m[1])) return m[1];
+    return null;
+}
+
+async function scanChannelIgns(guild) {
+    const channel = guild.channels.cache.find(c => c.name.includes('tm-list'));
+    if (!channel) return 0;
+    let count = 0;
+    try {
+        const msgs = await channel.messages.fetch({ limit: 100 });
+        for (const m of msgs.values()) {
+            if (m.author.bot) continue;
+            const ign = extractIgn(m);
+            if (ign && !ignStore[m.author.id]) {
+                ignStore[m.author.id] = { ign, source: 'channel', name: m.author.username };
+                count++;
+            }
+        }
+        if (count > 0) await saveIgns(); else saveIgnsLocal();
+    } catch (e) { console.error('IGN scan failed:', e.message); }
+    return count;
+}
+
+function getIgn(userId) { return ignStore[userId] ? ignStore[userId].ign : null; }
+
 async function syncRoster(guild) {
     const members = await guild.members.fetch();
     const sorted = members.filter(m => !m.user.bot).sort((a, b) => a.joinedAt - b.joinedAt);
@@ -204,7 +275,8 @@ async function syncRoster(guild) {
             const joined = member.joinedAt ? member.joinedAt.toLocaleDateString() : 'Unknown';
             const avatar = member.user ? member.user.displayAvatarURL({ size: 64 }) : 'https://cdn.discordapp.com/embed/avatars/0.png';
             const name = member.displayName || (member.user ? member.user.username : 'Unknown');
-            html += `                <div class="member-card" data-roles="${roles}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${name}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${name}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
+            const ign = getIgn(member.id) || 'Unknown';
+            html += `                <div class="member-card" data-roles="${roles}" data-ign="${ign}" data-joined="${joined}" onclick="toggleMember(this)">\n                    <img class="member-avatar" src="${avatar}" alt="${name}">\n                    <div class="member-name content-editable" data-content-id="member-${member.id}-name" contenteditable="false">${name}</div>\n                    <div class="member-roles">${roles}</div>\n                    <div class="member-details">\n                        <div>Joined: ${joined}</div>\n                        <div>IGN: ${ign}</div>\n                        <div>Roles: ${roles}</div>\n                    </div>\n                </div>\n`;
         } catch (e) { continue; }
     }
     html += '            </div>';
@@ -239,8 +311,11 @@ client.once('clientReady', () => {
     loadPlayersData();
     setTimeout(async () => {
         try {
+            await loadIgns();
             const guild = client.guilds.cache.get(GUILD_ID);
             if (guild) {
+                const scanned = await scanChannelIgns(guild);
+                console.log(`Scanned ${scanned} new IGNs from tm-list (total: ${Object.keys(ignStore).length})`);
                 const count = await syncRoster(guild);
                 console.log(`Auto-synced roster: ${count} members`);
             }
@@ -271,6 +346,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/shop', value: '6b6t server shop items' },
                     { name: '/online <player>', value: 'Check if a player is online' },
                     { name: '/mods', value: 'Recommended 6b6t client mods' },
+                    { name: '/ign <user>', value: 'Look up a member\'s Minecraft IGN (add ign: to set)' },
                     { name: '/poll <q> <opts>', value: 'Create a poll' },
                     { name: '/remind <time> <msg>', value: 'Set a reminder' },
                     { name: '/8ball <question>', value: 'Ask the magic 8-ball' },
@@ -710,12 +786,31 @@ client.on('interactionCreate', async (interaction) => {
             );
             await interaction.reply({ embeds: [embed] });
 
+        } else if (commandName === 'ign') {
+            if (!ignsLoaded) await loadIgns();
+            const user = interaction.options.getUser('user');
+            const setIgn = interaction.options.getString('ign');
+            if (setIgn) {
+                ignStore[user.id] = { ign: setIgn, source: 'manual', name: user.username };
+                await saveIgns();
+                const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('IGN Set').setDescription(`**${user.username}**'s IGN is now **${setIgn}**`);
+                await interaction.reply({ embeds: [embed] });
+            } else {
+                const ign = getIgn(user.id);
+                const embed = new EmbedBuilder().setColor('#c9a84c')
+                    .setTitle(`${user.username}'s IGN`)
+                    .setDescription(ign ? `**${ign}**` : 'Unknown')
+                    .setThumbnail(user.displayAvatarURL({ size: 64 }));
+                await interaction.reply({ embeds: [embed] });
+            }
+
         } else if (commandName === 'sync') {
             await interaction.deferReply({ ephemeral: true });
             if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has('Administrator')) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
             const guild = interaction.guild;
             if (!guild) { return interaction.editReply({ content: 'Sync only works in a server.' }); }
             try {
+                await scanChannelIgns(guild);
                 const count = await syncRoster(guild);
                 await interaction.editReply({ content: `Website updated! ${count} members synced. <https://fantasticgranted.github.io/The-Mafia-website/>` });
             } catch (e) {
