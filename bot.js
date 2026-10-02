@@ -19,6 +19,7 @@ function githubRequest(url, method, body) {
             });
         });
         req.on('error', reject);
+        req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timed out')); });
         if (body) req.write(JSON.stringify(body));
         req.end();
     });
@@ -787,14 +788,15 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'ign') {
-            if (!ignsLoaded) await loadIgns();
             const user = interaction.options.getUser('user');
             const setIgn = interaction.options.getString('ign');
             if (setIgn) {
+                await interaction.deferReply({ ephemeral: true });
+                if (!ignsLoaded) await loadIgns().catch(() => {});
                 ignStore[user.id] = { ign: setIgn, source: 'manual', name: user.username };
-                await saveIgns();
+                await saveIgns().catch(e => console.error('IGN save:', e.message));
                 const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('IGN Set').setDescription(`**${user.username}**'s IGN is now **${setIgn}**`);
-                await interaction.reply({ embeds: [embed] });
+                await interaction.editReply({ embeds: [embed] });
             } else {
                 const ign = getIgn(user.id);
                 const embed = new EmbedBuilder().setColor('#c9a84c')
