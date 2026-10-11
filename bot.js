@@ -905,7 +905,7 @@ async function sendAiMessage(message, userMsg, historyText) {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.content.trim() === '67') {
-        return message.reply('67');
+        return message.react('6️⃣').then(() => message.react('7️⃣'));
     }
     if (message.mentions.has(client.user)) {
         const userMsg = message.content.replace(/<@!?\d+>/g, '').trim() || 'Hello!';
