@@ -661,26 +661,20 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setColor('#c9a84c')
                 .setTitle('6b6t Server Commands')
-                .setDescription('Useful commands on the 6b6t server')
+                .setDescription('Verified commands on 6b6t (anarchy)')
                 .addFields(
-                    { name: '/tpa <player>', value: 'Send a teleport request' },
-                    { name: '/home <name>', value: 'Teleport to your home' },
-                    { name: '/sethome <name>', value: 'Set a home at current location' },
-                    { name: '/delhome <name>', value: 'Delete a home' },
-                    { name: '/homes', value: 'List all your homes' },
-                    { name: '/msg <player>', value: 'Send a private message' },
-                    { name: '/ignore <player>', value: 'Stop seeing messages from a player' },
-                    { name: '/mail send <player> <msg>', value: 'Send offline mail' },
-                    { name: '/mail read', value: 'Read your mail' },
-                    { name: '/skin <url/name>', value: 'Change your skin' },
-                    { name: '/bal', value: 'Check your balance' },
-                    { name: '/pay <player> <amount>', value: 'Pay another player' },
-                    { name: '/bal top', value: 'Richest players leaderboard' },
-                    { name: '/vote', value: 'Voting links and rewards' },
-                    { name: '/report <player> <reason>', value: 'Report a rulebreaker' },
-                    { name: '/coords <x> <z>', value: 'Share coordinates (nether/overworld calc)' },
-                    { name: '/hotspot', value: 'Teleport to an active hotspot' },
-                );
+                    { name: '/help', value: 'Show available commands' },
+                    { name: '/msg <player> <message>', value: 'Send a private message' },
+                    { name: '/r <message>', value: 'Reply to last message' },
+                    { name: '/ignore <player>', value: 'Block messages from a player' },
+                    { name: '/ignore list', value: 'Show ignored players' },
+                    { name: '/skin <name/url>', value: 'Change your skin' },
+                    { name: '/coords <x> <z>', value: 'Nether/Overworld coordinate conversion' },
+                    { name: '/tpa <player>', value: 'Teleport request (if enabled)' },
+                    { name: '/home', value: 'Teleport to home (if enabled)' },
+                    { name: '/sethome', value: 'Set home (if enabled)' },
+                )
+                .setFooter({ text: '6b6t is anarchy — many standard SMP commands (bal, shop, vote, tpa, home) may be disabled. Check in-game /help for current list.' });
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'shop') {
