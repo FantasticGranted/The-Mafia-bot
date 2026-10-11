@@ -905,7 +905,8 @@ async function sendAiMessage(message, userMsg, historyText) {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.content.trim() === '67') {
-        return message.react('6️⃣').then(() => message.react('7️⃣'));
+        message.react('6️⃣').then(() => message.react('7️⃣'));
+        return message.reply('https://klipy.com/gifs/67-67-kid-2');
     }
     if (message.mentions.has(client.user)) {
         const userMsg = message.content.replace(/<@!?\d+>/g, '').trim() || 'Hello!';
