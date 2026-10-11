@@ -661,7 +661,7 @@ client.on('interactionCreate', async (interaction) => {
             const embed = new EmbedBuilder()
                 .setColor('#c9a84c')
                 .setTitle('6b6t Server Commands')
-                .setDescription('Verified commands on 6b6t (anarchy)')
+                .setDescription('Verified working commands on 6b6t (anarchy)')
                 .addFields(
                     { name: '/help', value: 'Show available commands' },
                     { name: '/msg <player> <message>', value: 'Send a private message' },
@@ -669,12 +669,8 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/ignore <player>', value: 'Block messages from a player' },
                     { name: '/ignore list', value: 'Show ignored players' },
                     { name: '/skin <name/url>', value: 'Change your skin' },
-                    { name: '/coords <x> <z>', value: 'Nether/Overworld coordinate conversion' },
-                    { name: '/tpa <player>', value: 'Teleport request (if enabled)' },
-                    { name: '/home', value: 'Teleport to home (if enabled)' },
-                    { name: '/sethome', value: 'Set home (if enabled)' },
                 )
-                .setFooter({ text: '6b6t is anarchy — many standard SMP commands (bal, shop, vote, tpa, home) may be disabled. Check in-game /help for current list.' });
+                .setFooter({ text: '6b6t is anarchy — most SMP commands (bal, shop, report, coords, tpa, home, mail, pay, vote) are disabled. Check in-game /help for current list.' });
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'shop') {
