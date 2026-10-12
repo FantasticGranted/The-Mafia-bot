@@ -669,8 +669,12 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/ignore <player>', value: 'Block messages from a player' },
                     { name: '/ignore list', value: 'Show ignored players' },
                     { name: '/skin <name/url>', value: 'Change your skin' },
+                    { name: '/tpa <player>', value: 'Teleport request' },
+                    { name: '/home', value: 'Teleport to home' },
+                    { name: '/sethome', value: 'Set home' },
+                    { name: '/vote', value: 'Voting links and rewards' },
                 )
-                .setFooter({ text: '6b6t is anarchy — most SMP commands (bal, shop, report, coords, tpa, home, mail, pay, vote) are disabled. Check in-game /help for current list.' });
+                .setFooter({ text: '6b6t is anarchy — many SMP commands (bal, shop, report, coords, mail, pay) are disabled. Check in-game /help for current list.' });
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'shop') {
