@@ -916,4 +916,10 @@ client.on('messageCreate', async (message) => {
     sendAiMessage(message, message.content, repliedMsg.embeds[0].description);
 });
 
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.username.toLowerCase() === 'venenations' && (reaction.emoji.name === '6️⃣' || reaction.emoji.name === '7️⃣')) {
+        try { await reaction.users.remove(user.id); } catch (e) {}
+    }
+});
+
 client.login(TOKEN);
