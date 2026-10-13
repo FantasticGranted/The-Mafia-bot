@@ -844,15 +844,9 @@ client.on('interactionCreate', async (interaction) => {
             }
         } else if (commandName === 'anonsafe') {
             const msg = interaction.options.getString('message');
-            const safe = msg
-                .replace(/@everyone|@here/g, '')
-                .replace(/<@!?(\d+)>/g, '')
-                .replace(/<@&(\d+)>/g, '')
-                .replace(/^\/[a-z]+/gm, '')
-                .trim();
-            await interaction.reply({ content: 'Sent safely (mentions/commands stripped).', ephemeral: true });
-            if (interaction.channel && safe) {
-                await interaction.channel.send(safe);
+            await interaction.reply({ content: 'Sent safely (wrapped in code block to prevent pings).', ephemeral: true });
+            if (interaction.channel) {
+                await interaction.channel.send('```\n' + msg + '\n```');
             }
         } else if (commandName === 'sync') {
             await interaction.deferReply({ ephemeral: true });
