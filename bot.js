@@ -73,7 +73,8 @@ const commands = [
     new SlashCommandBuilder().setName('online').setDescription('Check if a player is online on 6b6t').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('mods').setDescription('Recommended 6b6t client mods').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('ign').setDescription('Look up or set a member\'s Minecraft IGN').addUserOption(o => o.setName('user').setDescription('The member').setRequired(true)).addStringOption(o => o.setName('ign').setDescription('Set their IGN (leave blank to look up)')).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-    new SlashCommandBuilder().setName('anon').setDescription('Send an anonymous message').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('anon').setDescription('Send an anonymous message (Creator only)').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('anonsafe').setDescription('Send a safe anonymous message (mentions/commands stripped)').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -372,6 +373,8 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/online <player>', value: 'Check if a player is online' },
                     { name: '/mods', value: 'Recommended 6b6t client mods' },
                     { name: '/ign <user>', value: 'Look up a member\'s Minecraft IGN (add ign: to set)' },
+                    { name: '/anon <msg>', value: 'Send anonymous message (Creator only)' },
+                    { name: '/anonsafe <msg>', value: 'Send safe anonymous message (strips mentions/commands)' },
                     { name: '/poll <q> <opts>', value: 'Create a poll' },
                     { name: '/remind <time> <msg>', value: 'Set a reminder' },
                     { name: '/8ball <question>', value: 'Ask the magic 8-ball' },
@@ -830,10 +833,26 @@ client.on('interactionCreate', async (interaction) => {
             }
 
         } else if (commandName === 'anon') {
+            const CREATOR_ID = '523511807328124943';
+            if (interaction.user.id !== CREATOR_ID) {
+                return interaction.reply({ content: 'Only the Creator can use this command.', ephemeral: true });
+            }
             const msg = interaction.options.getString('message');
             await interaction.reply({ content: 'Sent anonymously.', ephemeral: true });
             if (interaction.channel) {
                 await interaction.channel.send(msg);
+            }
+        } else if (commandName === 'anonsafe') {
+            const msg = interaction.options.getString('message');
+            const safe = msg
+                .replace(/@everyone|@here/g, '')
+                .replace(/<@!?(\d+)>/g, '')
+                .replace(/<@&(\d+)>/g, '')
+                .replace(/^\/[a-z]+/gm, '')
+                .trim();
+            await interaction.reply({ content: 'Sent safely (mentions/commands stripped).', ephemeral: true });
+            if (interaction.channel && safe) {
+                await interaction.channel.send(safe);
             }
         } else if (commandName === 'sync') {
             await interaction.deferReply({ ephemeral: true });
