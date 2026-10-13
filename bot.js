@@ -73,6 +73,7 @@ const commands = [
     new SlashCommandBuilder().setName('online').setDescription('Check if a player is online on 6b6t').addStringOption(o => o.setName('player').setDescription('Minecraft username').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('mods').setDescription('Recommended 6b6t client mods').setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('ign').setDescription('Look up or set a member\'s Minecraft IGN').addUserOption(o => o.setName('user').setDescription('The member').setRequired(true)).addStringOption(o => o.setName('ign').setDescription('Set their IGN (leave blank to look up)')).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('anon').setDescription('Send an anonymous message').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -828,6 +829,12 @@ client.on('interactionCreate', async (interaction) => {
                 await interaction.reply({ embeds: [embed] });
             }
 
+        } else if (commandName === 'anon') {
+            const msg = interaction.options.getString('message');
+            await interaction.reply({ content: 'Sent anonymously.', ephemeral: true });
+            if (interaction.channel) {
+                await interaction.channel.send(msg);
+            }
         } else if (commandName === 'sync') {
             await interaction.deferReply({ ephemeral: true });
             if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has('Administrator')) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
@@ -917,6 +924,15 @@ client.on('messageCreate', async (message) => {
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.username.toLowerCase() === 'venenations' && (reaction.emoji.name === '6️⃣' || reaction.emoji.name === '7️⃣')) {
+        try { await reaction.users.remove(user.id); } catch (e) {}
+    }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (reaction.partial) {
+        try { await reaction.fetch(); } catch (e) { return; }
+    }
     if (user.username.toLowerCase() === 'venenations' && (reaction.emoji.name === '6️⃣' || reaction.emoji.name === '7️⃣')) {
         try { await reaction.users.remove(user.id); } catch (e) {}
     }
