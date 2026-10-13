@@ -833,9 +833,9 @@ client.on('interactionCreate', async (interaction) => {
             }
 
         } else if (commandName === 'anon') {
-            const CREATOR_ID = '523511807328124943';
-            if (interaction.user.id !== CREATOR_ID) {
-                return interaction.reply({ content: 'Only the Creator can use this command.', ephemeral: true });
+            const CREATOR_ROLE_ID = '1525529923387789533';
+            if (!interaction.member.roles.cache.has(CREATOR_ROLE_ID)) {
+                return interaction.reply({ content: 'Only users with the Creator role can use this command.', ephemeral: true });
             }
             const msg = interaction.options.getString('message');
             await interaction.reply({ content: 'Sent anonymously.', ephemeral: true });
