@@ -918,7 +918,7 @@ async function sendAiMessage(message, userMsg, historyText) {
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-    if (message.content.includes('67')) {
+    if (message.content.includes('67') && message.author.username.toLowerCase() !== '6jtg') {
         message.react('6️⃣').then(() => message.react('7️⃣'));
         return message.reply('https://klipy.com/gifs/67-67-kid-2');
     }
