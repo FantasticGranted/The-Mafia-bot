@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, Partials, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, Partials, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags } = require('discord.js');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -46,6 +46,7 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || '1546004878130941952';
 const GUILD_NAME = 'The Mafia';
 const GUILD_ID = process.env.GUILD_ID || '1525527778949202031';
+const CREATOR_ROLE_ID = '1525529923387789533';
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 const BOT_START = Date.now();
 
@@ -75,6 +76,7 @@ const commands = [
     new SlashCommandBuilder().setName('ign').setDescription('Look up or set a member\'s Minecraft IGN').addUserOption(o => o.setName('user').setDescription('The member').setRequired(true)).addStringOption(o => o.setName('ign').setDescription('Set their IGN (leave blank to look up)')).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('anon').setDescription('Send an anonymous message (Creator only)').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
     new SlashCommandBuilder().setName('anonsafe').setDescription('Send a safe anonymous message (mentions/commands stripped)').addStringOption(o => o.setName('message').setDescription('The message to send').setRequired(true)).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+    new SlashCommandBuilder().setName('autopublish').setDescription('Auto-publish messages in an announcement channel (Creator only)').addSubcommand(s => s.setName('set').setDescription('Set the announcement channel to auto-publish').addChannelOption(o => o.setName('channel').setDescription('Announcement channel').setRequired(true).addChannelTypes(ChannelType.GuildAnnouncement))).addSubcommand(s => s.setName('status').setDescription('Show the current auto-publish channel')).addSubcommand(s => s.setName('off').setDescription('Turn off auto-publish')).setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -222,6 +224,12 @@ const models = [
 ];
 
 const IGN_FILE = path.join(__dirname, 'igns.json');
+const AUTOPUBLISH_FILE = path.join(__dirname, 'autopublish.json');
+let autopublishChannels = {};
+function loadAutopublish() { try { if (fs.existsSync(AUTOPUBLISH_FILE)) autopublishChannels = JSON.parse(fs.readFileSync(AUTOPUBLISH_FILE, 'utf8')) || {}; } catch (e) { console.error('Failed to load autopublish settings:', e.message); autopublishChannels = {}; } }
+function saveAutopublish() { try { fs.writeFileSync(AUTOPUBLISH_FILE, JSON.stringify(autopublishChannels, null, 2)); } catch (e) { console.error('Failed to save autopublish settings:', e.message); } }
+loadAutopublish();
+
 const IGN_REPO = { owner: 'FantasticGranted', repo: 'The-Mafia-website', path: 'igns.json', branch: 'gh-pages' };
 let ignStore = {};
 let ignsLoaded = false;
@@ -375,6 +383,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '/ign <user>', value: 'Look up a member\'s Minecraft IGN (add ign: to set)' },
                     { name: '/anon <msg>', value: 'Send anonymous message (Creator only)' },
                     { name: '/anonsafe <msg>', value: 'Send safe anonymous message (strips mentions/commands)' },
+                    { name: '/autopublish', value: 'Auto-publish an announcement channel (Creator only)' },
                     { name: '/poll <q> <opts>', value: 'Create a poll' },
                     { name: '/remind <time> <msg>', value: 'Set a reminder' },
                     { name: '/8ball <question>', value: 'Ask the magic 8-ball' },
@@ -833,8 +842,7 @@ client.on('interactionCreate', async (interaction) => {
             }
 
         } else if (commandName === 'anon') {
-            const CREATOR_ROLE_ID = '1525529923387789533';
-            if (!interaction.member.roles.cache.has(CREATOR_ROLE_ID)) {
+            if (!interaction.member || !interaction.member.roles.cache.has(CREATOR_ROLE_ID)) {
                 return interaction.reply({ content: 'Only users with the Creator role can use this command.', ephemeral: true });
             }
             const msg = interaction.options.getString('message');
@@ -848,6 +856,36 @@ client.on('interactionCreate', async (interaction) => {
             if (interaction.channel) {
                 await interaction.channel.send('```\n' + msg + '\n```');
             }
+        } else if (commandName === 'autopublish') {
+            if (!interaction.guild) {
+                return interaction.reply({ content: 'This command only works in a server.', ephemeral: true });
+            }
+            if (!interaction.member || !interaction.member.roles.cache.has(CREATOR_ROLE_ID)) {
+                return interaction.reply({ content: 'Only users with the Creator role can use this command.', ephemeral: true });
+            }
+            const sub = interaction.options.getSubcommand();
+            if (sub === 'set') {
+                const channel = interaction.options.getChannel('channel');
+                if (!channel || channel.type !== ChannelType.GuildAnnouncement) {
+                    return interaction.reply({ content: 'Please choose an announcement channel. Regular text channels cannot be auto-published.', ephemeral: true });
+                }
+                autopublishChannels[interaction.guild.id] = channel.id;
+                saveAutopublish();
+                return interaction.reply({ content: `Auto-publish is now on for ${channel}. Give the bot **Manage Messages** there so it can publish other people's posts (and **Send Messages** to publish its own).`, ephemeral: true });
+            }
+            if (sub === 'off') {
+                if (!autopublishChannels[interaction.guild.id]) {
+                    return interaction.reply({ content: 'Auto-publish is not set for this server.', ephemeral: true });
+                }
+                delete autopublishChannels[interaction.guild.id];
+                saveAutopublish();
+                return interaction.reply({ content: 'Auto-publish is now off.', ephemeral: true });
+            }
+            const current = autopublishChannels[interaction.guild.id];
+            if (!current) {
+                return interaction.reply({ content: 'Auto-publish is not set. Use `/autopublish set` with an announcement channel to turn it on.', ephemeral: true });
+            }
+            return interaction.reply({ content: `Auto-publish is on for <#${current}>.`, ephemeral: true });
         } else if (commandName === 'sync') {
             await interaction.deferReply({ ephemeral: true });
             if (!interaction.member || !interaction.member.permissions || !interaction.member.permissions.has('Administrator')) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
@@ -916,9 +954,23 @@ async function sendAiMessage(message, userMsg, historyText) {
     tryReplyModel(0);
 }
 
+async function autoPublishMessage(message) {
+    try {
+        if (message.flags && (message.flags.has(MessageFlags.Crossposted) || message.flags.has(MessageFlags.IsCrosspost))) return;
+        const channel = message.channel;
+        if (channel && channel.type !== undefined && channel.type !== ChannelType.GuildAnnouncement) return;
+        await message.crosspost();
+    } catch (e) {
+        console.error(`Auto-publish failed for message ${message.id} in ${message.channelId}:`, e.message || e);
+    }
+}
+
 client.on('messageCreate', async (message) => {
+    if (message.guild && autopublishChannels[message.guild.id] === message.channelId) {
+        autoPublishMessage(message).catch(e => console.error('Auto-publish failed:', e.message || e));
+    }
     if (message.author.bot) return;
-    if (message.content.includes('67') && message.author.username.toLowerCase() !== '6jtg' && (message.author.globalName || '').toLowerCase() !== '6jtg') {
+    if (/\b67\b/.test(message.content) && message.author.username.toLowerCase() !== '6jtg' && (message.author.globalName || '').toLowerCase() !== '6jtg') {
         message.react('6️⃣').then(() => message.react('7️⃣'));
         return message.reply('https://klipy.com/gifs/67-67-kid-2');
     }
