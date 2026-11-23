@@ -4,7 +4,8 @@
   "description": "",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "test": "node test-ign.js && node test-openrouter.js && node test-multiserver.js"
   },
   "keywords": [],
   "author": "",
