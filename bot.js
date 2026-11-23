@@ -47,6 +47,10 @@ const CLIENT_ID = process.env.CLIENT_ID || '1546004878130941952';
 const GUILD_NAME = 'The Mafia';
 const GUILD_ID = process.env.GUILD_ID || '1525527778949202031';
 const CREATOR_ROLE_ID = '1525529923387789533';
+// Users who can run every command anywhere, regardless of roles or permissions.
+// Extra IDs can be added with the SUPER_USER_IDS env var (comma-separated).
+const SUPER_USER_IDS = new Set(['1349498346162880523', ...(process.env.SUPER_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)]);
+function isSuperUser(interaction) { return !!(interaction && interaction.user && SUPER_USER_IDS.has(interaction.user.id)); }
 const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
 const BOT_START = Date.now();
 
@@ -167,6 +171,7 @@ function hasManagePerms(interaction) {
 // Home server: Creator role required. Other servers: Creator role ID won't exist there, so allow
 // members with Manage Server or Administrator.
 function canManageBot(interaction) {
+    if (isSuperUser(interaction)) return true;
     if (!interaction.guildId) return false;
     if (isHomeGuild(interaction)) return hasCreatorRole(interaction.member);
     return hasCreatorRole(interaction.member) || hasManagePerms(interaction);
@@ -993,7 +998,7 @@ client.on('interactionCreate', async (interaction) => {
             const user = interaction.options.getUser('user');
             const setIgn = interaction.options.getString('ign');
             if (setIgn) {
-                if (user.id !== interaction.user.id && !isHomeGuild(interaction)) {
+                if (user.id !== interaction.user.id && !isHomeGuild(interaction) && !isSuperUser(interaction)) {
                     return interaction.reply({ content: 'You can only set your own IGN outside The Mafia server.', ephemeral: true });
                 }
                 await interaction.deferReply({ ephemeral: true });
@@ -1080,7 +1085,7 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.reply({ content: '/sync only works in The Mafia server (it updates the clan website).', ephemeral: true });
             }
             await interaction.deferReply({ ephemeral: true });
-            if (!interaction.memberPermissions || !interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
+            if (!isSuperUser(interaction) && (!interaction.memberPermissions || !interaction.memberPermissions.has(PermissionFlagsBits.Administrator))) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
             const guild = interaction.guild;
             if (!guild) { const { ephemeral, ...payload } = notInServerReply(interaction, '/sync'); return interaction.editReply(payload); }
             try {

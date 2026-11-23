@@ -22,10 +22,10 @@ const HOME = '1525527778949202031', OTHER = '999', CREATOR = '152552992338778953
 let failures = 0;
 function check(name, cond, extra) { console.log(`${cond ? 'PASS' : 'FAIL'} | ${name}${cond ? '' : ' -> ' + JSON.stringify(extra)}`); if (!cond) failures++; }
 
-function makeInteraction({ commandName, guildId = null, botInGuild = false, member = null, perms = null, options = {}, sub = null, context = 0 }) {
+function makeInteraction({ commandName, guildId = null, botInGuild = false, member = null, perms = null, options = {}, sub = null, context = 0, userId = 'u1' }) {
     const out = [];
     const i = {
-        commandName, guildId, context, channelId: 'c1', user: { id: 'u1', username: 'dave', globalName: 'Dave', displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' },
+        commandName, guildId, context, channelId: 'c1', user: { id: userId, username: 'dave', globalName: 'Dave', displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' },
         guild: botInGuild ? fakeGuild(guildId) : null,
         channel: botInGuild ? { send: async (m) => out.push({ channelSend: m }) } : null,
         member, memberPermissions: perms ? new PermissionsBitField(perms) : null,
@@ -118,6 +118,10 @@ const text = (out) => JSON.stringify(out);
     check('autopublish other: Manage Server allowed', !/permission to use/.test(text(o)), o);
     o = await run(makeInteraction({ commandName: 'autopublish', guildId: OTHER, botInGuild: true, member: fakeMember('a', []), perms: 0n, sub: 'list' }));
     check('autopublish other: no perms denied', /Manage Server/.test(text(o)), o);
+    o = await run(makeInteraction({ commandName: 'autopublish', guildId: HOME, botInGuild: true, member: fakeMember('su', []), sub: 'list', userId: '1349498346162880523' }));
+    check('autopublish home: super user allowed without role', /auto-publish/i.test(text(o)) && !/Creator role/.test(text(o)), o);
+    o = await run(makeInteraction({ commandName: 'anon', guildId: HOME, botInGuild: true, member: fakeMember('su', []), options: { message: 'hi' }, userId: '1349498346162880523' }));
+    check('anon home: super user allowed without role', !/Creator role/.test(text(o)), o);
     o = await run(makeInteraction({ commandName: 'sync', guildId: OTHER, botInGuild: true, member: fakeMember('a', []), perms: PermissionsBitField.Flags.Administrator }));
     check('sync refused outside home', /only works in The Mafia/.test(text(o)), o);
 
