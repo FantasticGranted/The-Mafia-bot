@@ -11,6 +11,11 @@ djs.REST.prototype.put = async () => ({});
 let restGet = async () => [];
 djs.REST.prototype.get = function (...a) { return restGet(...a); };
 process.env.OPENROUTER_KEY = '';
+process.env.OPENROUTER_MODELS = 'test/model:free';
+// No real network calls to OpenRouter from tests.
+const https = require('https');
+const { EventEmitter } = require('events');
+https.request = () => { const r = new EventEmitter(); r.write = () => {}; r.end = () => setImmediate(() => r.emit('error', new Error('offline test'))); r.destroy = () => {}; return r; };
 require('./bot.js');
 
 const HOME = '1525527778949202031', OTHER = '999', CREATOR = '1525529923387789533', BOT_ID = '1546004878130941952';
