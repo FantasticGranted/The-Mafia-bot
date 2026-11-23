@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, Partials, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, Partials, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, PermissionFlagsBits, escapeMarkdown } = require('discord.js');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -100,12 +100,60 @@ const MEMBER_DATA_MAX_CHARS = 8000;
 // interaction.guild is only set when the bot is actually in that server. When the bot is used as a
 // user-installed app (or the server only added the app's commands), interaction.guildId is set but
 // interaction.guild is null and interaction.member is a raw API object (roles = array of IDs).
-const INVITE_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}`;
-function isHomeGuild(interaction) { return interaction.guildId === GUILD_ID; }
-function notInServerMessage(interaction, what) {
-    if (!interaction.guildId) return `${what} only works inside a server.`;
-    return `${what} needs me to be a member of this server. Add me here: <${INVITE_URL}>`;
+// View Channels, Send Messages, Embed Links, Add Reactions, Read Message History, Manage Messages (auto-publish) = 93248
+const INVITE_PERMISSIONS = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages].reduce((a, b) => a | b, 0n).toString();
+const INVITE_URL = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&scope=bot%20applications.commands&permissions=${INVITE_PERMISSIONS}&integration_type=0`;
+function addBotButtonRow() {
+    return new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Add the bot to this server').setURL(INVITE_URL));
 }
+// Ephemeral reply payload for commands that need the bot to be a member of the server.
+function notInServerReply(interaction, what, detail) {
+    if (!interaction.guildId) return { content: `${what} only works inside a server.`, ephemeral: true };
+    return { content: detail || `${what} needs me to be a member of this server. Add me with the button below.`, components: [addBotButtonRow()], ephemeral: true };
+}
+const NO_MEMBER_ACCESS = 'Discord doesn\'t let apps see the member list or member count of a server they haven\'t been added to. (The only exceptions are Discoverable servers and servers with the Server Widget turned on, and this server is neither.) Add me to the server to use this here.';
+
+// Public info about a server the bot is NOT in. Only real data from Discord:
+//  - GET /guilds/{id}/preview  -> approximate member + online counts (Discoverable servers only)
+//  - GET /guilds/{id}/widget.json -> online count + online members (only if Server Widget is enabled)
+//  - GET /invites/{code}?with_counts=true -> approximate counts (using the widget's instant invite)
+const publicGuildCache = new Map();
+async function getPublicGuildInfo(guildId) {
+    const cached = publicGuildCache.get(guildId);
+    if (cached && Date.now() - cached.time < 60000) return cached.info;
+    const info = { name: null, members: null, online: null, widgetMembers: null, sources: [] };
+    try {
+        const p = await rest.get(Routes.guildPreview(guildId));
+        info.name = p.name;
+        if (typeof p.approximate_member_count === 'number') info.members = p.approximate_member_count;
+        if (typeof p.approximate_presence_count === 'number') info.online = p.approximate_presence_count;
+        info.sources.push('server discovery');
+    } catch (e) { console.log(`Guild preview unavailable for ${guildId}: ${e.code || e.status || e.message}`); }
+    try {
+        const w = await rest.get(Routes.guildWidgetJSON(guildId), { auth: false });
+        info.name = info.name || w.name;
+        if (info.online == null && typeof w.presence_count === 'number') info.online = w.presence_count;
+        if (Array.isArray(w.members)) info.widgetMembers = w.members;
+        info.sources.push('server widget');
+        if (info.members == null && w.instant_invite) {
+            const code = String(w.instant_invite).split('/').pop();
+            try {
+                const inv = await rest.get(Routes.invite(code), { query: new URLSearchParams({ with_counts: 'true' }) });
+                if (typeof inv.approximate_member_count === 'number') info.members = inv.approximate_member_count;
+                if (typeof inv.approximate_presence_count === 'number') info.online = inv.approximate_presence_count;
+                info.sources.push('invite');
+            } catch (e) { console.log(`Invite lookup failed for ${guildId}: ${e.code || e.message}`); }
+        }
+    } catch (e) { console.log(`Guild widget unavailable for ${guildId}: ${e.code || e.status || e.message}`); }
+    publicGuildCache.set(guildId, { info, time: Date.now() });
+    return info;
+}
+// Replace a deferred public reply with an ephemeral explanation.
+async function replyPrivately(interaction, payload) {
+    try { await interaction.deleteReply(); await interaction.followUp(payload); }
+    catch (e) { const { ephemeral, ...rest2 } = payload; await interaction.editReply(rest2); }
+}
+function isHomeGuild(interaction) { return interaction.guildId === GUILD_ID; }
 function hasCreatorRole(member) {
     if (!member || !member.roles) return false;
     if (member.roles.cache) return member.roles.cache.has(CREATOR_ROLE_ID);
@@ -719,8 +767,18 @@ client.on('interactionCreate', async (interaction) => {
 
         } else if (commandName === 'random') {
             if (!interaction.guild) {
-                await interaction.reply({ content: notInServerMessage(interaction, '/random'), ephemeral: true });
-                return;
+                if (!interaction.guildId) return interaction.reply(notInServerReply(interaction, '/random'));
+                await interaction.deferReply();
+                const pub = await getPublicGuildInfo(interaction.guildId);
+                if (pub.widgetMembers && pub.widgetMembers.length) {
+                    const picked = pub.widgetMembers[Math.floor(Math.random() * pub.widgetMembers.length)];
+                    const embed = new EmbedBuilder().setColor('#c9a84c').setTitle('Random Member')
+                        .setDescription(`🎰 **${escapeMarkdown(String(picked.username))}** has been selected!`)
+                        .setFooter({ text: 'Picked from members online right now (server widget). Add the bot to pick from everyone.' });
+                    if (picked.avatar_url) embed.setThumbnail(picked.avatar_url);
+                    return interaction.editReply({ embeds: [embed] });
+                }
+                return replyPrivately(interaction, notInServerReply(interaction, '/random', NO_MEMBER_ACCESS));
             }
             await interaction.deferReply();
             const members = await interaction.guild.members.fetch();
@@ -849,7 +907,19 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ embeds: [embed] });
 
         } else if (commandName === 'roster') {
-            if (!interaction.guild) { await interaction.reply({ content: notInServerMessage(interaction, '/roster'), ephemeral: true }); } else {
+            if (!interaction.guild) {
+                if (!interaction.guildId) return interaction.reply(notInServerReply(interaction, '/roster'));
+                await interaction.deferReply();
+                const pub = await getPublicGuildInfo(interaction.guildId);
+                if (pub.widgetMembers && pub.widgetMembers.length) {
+                    const names = pub.widgetMembers.map(m => escapeMarkdown(String(m.username)));
+                    const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(truncate(`${pub.name || 'This server'} - Online Now`, 256))
+                        .setDescription(truncate(names.join(', '), 4000))
+                        .setFooter({ text: `${pub.online ?? names.length} online${pub.members != null ? ` of ~${pub.members} members` : ''} (server widget shows up to 100 online members, no roles). Add the bot for the full roster.` });
+                    return interaction.editReply({ embeds: [embed], components: [addBotButtonRow()] });
+                }
+                return replyPrivately(interaction, notInServerReply(interaction, '/roster', NO_MEMBER_ACCESS));
+            } else {
                 const guild = interaction.guild;
                 await interaction.deferReply();
                 const members = await guild.members.fetch();
@@ -906,7 +976,19 @@ client.on('interactionCreate', async (interaction) => {
             }
 
         } else if (commandName === 'members') {
-            if (!interaction.guild) { await interaction.reply({ content: notInServerMessage(interaction, '/members'), ephemeral: true }); } else {
+            if (!interaction.guild) {
+                if (!interaction.guildId) return interaction.reply(notInServerReply(interaction, '/members'));
+                await interaction.deferReply();
+                const pub = await getPublicGuildInfo(interaction.guildId);
+                if (pub.members != null || pub.online != null) {
+                    const embed = new EmbedBuilder().setColor('#c9a84c').setTitle(truncate(`${pub.name || 'This server'} - Member Count`, 256));
+                    if (pub.members != null) embed.addFields({ name: 'Members (approx.)', value: pub.members.toLocaleString('en-US'), inline: true });
+                    if (pub.online != null) embed.addFields({ name: 'Online (approx.)', value: pub.online.toLocaleString('en-US'), inline: true });
+                    embed.setFooter({ text: `Approximate counts from Discord's public ${pub.sources.join(' + ')} info. Add the bot for exact human/bot counts.` });
+                    return interaction.editReply({ embeds: [embed], components: [addBotButtonRow()] });
+                }
+                return replyPrivately(interaction, notInServerReply(interaction, '/members', NO_MEMBER_ACCESS));
+            } else {
                 const guild = interaction.guild;
                 await interaction.deferReply();
                 const title = guild.id === GUILD_ID ? GUILD_NAME : guild.name;
@@ -966,7 +1048,7 @@ client.on('interactionCreate', async (interaction) => {
 
         } else if (commandName === 'anon') {
             if (!interaction.guild || !interaction.channel) {
-                return interaction.reply({ content: notInServerMessage(interaction, '/anon'), ephemeral: true });
+                return interaction.reply(notInServerReply(interaction, '/anon'));
             }
             if (!canManageBot(interaction)) {
                 return interaction.reply({ content: managerRequirement(interaction), ephemeral: true });
@@ -978,7 +1060,7 @@ client.on('interactionCreate', async (interaction) => {
         } else if (commandName === 'anonsafe') {
             // Anonymous posting needs the bot itself in the channel; as a user app the reply would show who used it.
             if (!interaction.guild || !interaction.channel) {
-                return interaction.reply({ content: notInServerMessage(interaction, '/anonsafe'), ephemeral: true });
+                return interaction.reply(notInServerReply(interaction, '/anonsafe'));
             }
             const msg = interaction.options.getString('message');
             try { await interaction.channel.send({ content: '```\n' + msg.replace(/```/g, "'''") + '\n```', allowedMentions: { parse: [] } }); }
@@ -986,7 +1068,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.reply({ content: 'Sent safely (wrapped in code block to prevent pings).', ephemeral: true });
         } else if (commandName === 'autopublish') {
             if (!interaction.guild) {
-                return interaction.reply({ content: notInServerMessage(interaction, '/autopublish'), ephemeral: true });
+                return interaction.reply(notInServerReply(interaction, '/autopublish'));
             }
             if (!canManageBot(interaction)) {
                 return interaction.reply({ content: managerRequirement(interaction), ephemeral: true });
@@ -1035,7 +1117,7 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.deferReply({ ephemeral: true });
             if (!interaction.memberPermissions || !interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) { return interaction.editReply({ content: 'You need admin permissions to use this.' }); }
             const guild = interaction.guild;
-            if (!guild) { return interaction.editReply({ content: notInServerMessage(interaction, '/sync') }); }
+            if (!guild) { const { ephemeral, ...payload } = notInServerReply(interaction, '/sync'); return interaction.editReply(payload); }
             try {
                 await scanChannelIgns(guild);
                 const count = await syncRoster(guild);
