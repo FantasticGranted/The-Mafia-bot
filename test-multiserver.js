@@ -8,7 +8,8 @@ djs.Client.prototype.login = async function () { return 'stub'; };
 const origOn = djs.Client.prototype.on;
 djs.Client.prototype.on = function (ev, fn) { clientInstance = this; (handlers[ev] = handlers[ev] || []).push(fn); return origOn.call(this, ev, fn); };
 djs.REST.prototype.put = async () => ({});
-djs.REST.prototype.get = async () => [];
+let restGet = async () => [];
+djs.REST.prototype.get = function (...a) { return restGet(...a); };
 process.env.OPENROUTER_KEY = '';
 require('./bot.js');
 
@@ -30,6 +31,7 @@ function makeInteraction({ commandName, guildId = null, botInGuild = false, memb
         deferReply: async () => { i.deferred = true; },
         editReply: async (m) => { out.push({ edit: m }); },
         followUp: async (m) => { out.push({ followUp: m }); },
+        deleteReply: async () => { out.push({ deleted: true }); },
     };
     return i;
 }
@@ -61,7 +63,7 @@ const text = (out) => JSON.stringify(out);
     o = await run(makeInteraction({ commandName: 'rank', guildId: OTHER, member: raw, perms: 0n }));
     check('rank user-install raw member', /Nick/.test(text(o)) && !/Something went wrong/.test(text(o)), o);
     o = await run(makeInteraction({ commandName: 'roster', guildId: OTHER, member: raw }));
-    check('roster user-install gives invite hint', /Add me here/.test(text(o)), o);
+    check('roster user-install (no public data) gives friendly message + add button', /doesn't let apps see/.test(text(o)) && /integration_type=0/.test(text(o)), o);
     o = await run(makeInteraction({ commandName: 'poll', guildId: OTHER, member: raw, options: { question: 'Q?', options: 'a,b' } }));
     check('poll user-install uses native poll', o[0].reply && o[0].reply.poll && o[0].reply.poll.answers.length === 2, o);
     o = await run(makeInteraction({ commandName: 'stats', guildId: OTHER, member: raw, options: { player: 'melonpopbob' } }));
@@ -73,7 +75,35 @@ const text = (out) => JSON.stringify(out);
     o = await run(makeInteraction({ commandName: 'ign', guildId: OTHER, member: raw, options: { user: { id: 'u2', username: 'x' }, ign: 'Hacker' } }));
     check('ign: cannot set others outside home', /only set your own/.test(text(o)), o);
     o = await run(makeInteraction({ commandName: 'anon', guildId: OTHER, member: raw, options: { message: 'hi' } }));
-    check('anon user-install refused cleanly', /Add me here/.test(text(o)), o);
+    check('anon user-install refused cleanly with add button', /needs me to be a member/.test(text(o)) && /permissions=93248/.test(text(o)), o);
+
+    // /members, /roster, /random as a user app in a server the bot isn't in
+    const err = (code) => Object.assign(new Error('x'), { code });
+    const PREVIEW = { name: 'Disco Server', approximate_member_count: 12345, approximate_presence_count: 678 };
+    const WIDGET = { name: 'Widget Server', presence_count: 42, members: [{ username: 'alice', avatar_url: 'https://cdn.discordapp.com/embed/avatars/1.png' }, { username: 'bob_*x*' }], instant_invite: 'https://discord.com/invite/abc123' };
+    const INVITE = { approximate_member_count: 999, approximate_presence_count: 50 };
+    let gid = 1000;
+    const ui = (commandName) => makeInteraction({ commandName, guildId: String(gid++), member: raw });
+    restGet = async (route) => { if (route.endsWith('/preview')) return PREVIEW; throw err(50004); };
+    o = await run(ui('members'));
+    let f = JSON.stringify(o[0].edit && o[0].edit.embeds[0].data);
+    check('members user-install: discoverable -> approx counts', /12,345/.test(f) && /678/.test(f) && /Disco Server/.test(f), o);
+    restGet = async (route) => { if (route.endsWith('/preview')) throw err(50001); if (route.endsWith('/widget.json')) return WIDGET; if (route.startsWith('/invites/abc123')) return INVITE; throw err(0); };
+    o = await run(ui('members'));
+    f = JSON.stringify(o[0].edit && o[0].edit.embeds[0].data);
+    check('members user-install: widget+invite -> approx counts', /999/.test(f) && /50/.test(f) && /Widget Server/.test(f), o);
+    o = await run(ui('roster'));
+    f = JSON.stringify(o[0].edit && o[0].edit.embeds[0].data);
+    check('roster user-install: widget online list', /alice/.test(f) && /bob\\\\_/.test(f), o);
+    o = await run(ui('random'));
+    f = JSON.stringify(o[0].edit && o[0].edit.embeds[0].data);
+    check('random user-install: picks from widget', /alice|bob/.test(f), o);
+    restGet = async () => { throw err(50004); };
+    o = await run(ui('members'));
+    check('members user-install: nothing public -> friendly ephemeral + button, not an error', o.some(x => x.followUp && x.followUp.ephemeral && /doesn't let apps see/.test(x.followUp.content) && x.followUp.components) && !/Something went wrong/.test(text(o)), o);
+    o = await run(makeInteraction({ commandName: 'members', context: 1 }));
+    check('members in DM: server-only message', /only works inside a server/.test(text(o)), o);
+    restGet = async () => [];
     // autopublish permissions
     o = await run(makeInteraction({ commandName: 'autopublish', guildId: HOME, botInGuild: true, member: fakeMember('a', []), perms: PermissionsBitField.Flags.Administrator, sub: 'list' }));
     check('autopublish home: admin w/o Creator denied', /Creator role/.test(text(o)), o);
